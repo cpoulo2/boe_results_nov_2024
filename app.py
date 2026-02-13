@@ -247,11 +247,11 @@ The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Preci
     # bold these titles
     st.write(f"**Detailed Precinct-Level Turnout and Millionaires Tax Referendum Results for {selected_race}**")
 
-    st.dataframe(filtered_general, use_container_width=True)
+    st.dataframe(filtered_general, use_container_width=True, hide_index=True)
 
     st.write(f"**Detailed Precinct-Level BOE Results for {selected_race}**")
     
-    st.dataframe(filtered_boe, use_container_width=True)
+    st.dataframe(filtered_boe, use_container_width=True, hide_index=True)
 
 
 
