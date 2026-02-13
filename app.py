@@ -5,17 +5,11 @@ import geopandas as gpd
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
-from folium.plugins import MarkerCluster
 
 
 st.title("Board of Education Election Results by Precinct")
 st.markdown("""
 This application presents the results of the Board of Education election by precinct.
-
-I hope you're happy...I lost an hour of free time to this project...
-
-JK! Hope this helps!!
-
 """)
 
 # set page config to wide
@@ -296,6 +290,15 @@ The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Preci
     # with open("ward_precinct_ersb20_intersection.html", "r", encoding="utf-8") as html_file:
     #     html = html_file.read()
     # st.components.v1.html(html, height=700, scrolling=True)
+
+    # apply subtext to the markdown language
+
+    st.markdown(
+        """<sup>
+    I hope you're happy...I lost an hour of free time to this project...
+
+JK! Hope this helps!!</sup>""",
+        unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
