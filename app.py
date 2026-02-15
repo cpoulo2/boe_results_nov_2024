@@ -21,7 +21,7 @@ def load_data():
 
     # ersb_10 = gpd.read_file(rf"ERSB_10_District_Map_FA1_SB_15.shp")
     # ersb_20 = gpd.read_file(rf"ERSB_20_Sub_District_Map_FA1_SB_15.shp")
-    # ward_precinct = gpd.read_file(rf"ward_precinct.geojson")
+    ward_precinct = gpd.read_file(rf"ward_precinct.geojson")
     # intersection = gpd.read_file(rf"ward_precinct_ersb20_intersection.geojson")
 
 
@@ -72,6 +72,12 @@ def load_data():
     boe_join = boe.groupby(['ward','precinct']).agg({
         'race_name':'first'
         }).reset_index()
+    
+    # merge boe_join with ward_precinct to get geometry for merging with general
+    boe_outlines = ward_precinct.merge(boe_join,on=["ward","precinct"],how="left")
+
+    # dissolve the geometry by district to get a geometry for each district
+    boe_outlines = boe_outlines.dissolve(by='race_name')
 
     # create a ward_precinct field in boe_join for merging with general
     boe_join['ward'] = boe_join['ward'].apply(lambda x: str(x).zfill(2))
@@ -155,14 +161,14 @@ def load_data():
     "ref_yes_percent_precinct",
     "ref_won_precinct"]
 
-    return general,boe
+    return general,boe,boe_outlines,ward_precinct
 
 #    return df,boe,general,pt_relief,ersb_20
 #    return ward_precinct
 def main():    
     # Load data
 #    df,boe,general,pt_relief,ersb_20=load_data()
-    general,boe=load_data()
+    general,boe,boe_outlines,ward_precinct=load_data()
 
 
     # Create a select box to select by race_name.unique() and sort alphabetically
@@ -180,7 +186,53 @@ def main():
 
     boe_grouped['candidate_percent_precinct'] = boe_grouped['ballots_candidate_precinct'] / boe_grouped['ballots_precinct_total']
 
-        # Pivot BOE on candidate_name get first of ballots_candiate_precinct, ballots_precinct_total, candidate_percent_precinct
+    # Create color palette for candidates
+    unique_candidates = sorted(filtered_boe['candidate_name'].unique())
+    colors = ['#2E8B57', '#FF69B4', '#4169E1', '#FF6347', '#9370DB', '#32CD32', '#FF4500', '#20B2AA', '#DAA520', '#DC143C']
+    candidate_colors = {candidate: colors[i % len(colors)] for i, candidate in enumerate(unique_candidates)}
+    tie_color = '#808080'  # Grey for ties
+
+    # Create map data BEFORE pivoting (so we still have candidate_name column)
+    def determine_winner_and_color(group):
+        max_votes = group['ballots_candidate_precinct'].max()
+        winners = group[group['ballots_candidate_precinct'] == max_votes]['candidate_name'].tolist()
+        
+        if len(winners) > 1:
+            # It's a tie
+            winner_name = f"TIE: {' & '.join(sorted(winners))}"
+            color = tie_color
+        else:
+            # Single winner
+            winner_name = winners[0]
+            color = candidate_colors[winner_name]
+        
+        candidates_text = '<br>'.join([f"<b>{row['candidate_name']}</b>: {row['ballots_candidate_precinct']:,.0f} votes ({row['candidate_percent_precinct']:.1%})" 
+                                      for _, row in group.iterrows()])
+        
+        return pd.Series({
+            'candidates': candidates_text,
+            'winner': winner_name,
+            'winner_color': color,
+            'total_precinct_votes': group['ballots_precinct_total'].iloc[0],
+            'ward': group['ward'].iloc[0], 
+            'precinct': group['precinct'].iloc[0]
+        })
+
+    boe_summary = filtered_boe.groupby(['ward_precinct']).apply(determine_winner_and_color).reset_index()
+
+    # Merge aggregated data with ward_precinct geometry
+    boe_map = boe_summary.merge(ward_precinct, on=["ward_precinct"], how="left")
+    boe_map = gpd.GeoDataFrame(boe_map, geometry='geometry')
+
+    # Remove columns with ":" in them and change ward_x and precinct_x to ward and precinct if they exist
+    cols_to_drop = [col for col in boe_map.columns if ":" in col]
+    if cols_to_drop:
+        boe_map = boe_map.drop(columns=cols_to_drop)
+    
+    if 'ward_x' in boe_map.columns:
+        boe_map = boe_map.rename(columns={"ward_x":"ward","precinct_x":"precinct"})
+
+    # Now pivot BOE on candidate_name for the tables (this removes candidate_name column)
     filtered_boe = filtered_boe.pivot_table(
         index=['ward','precinct'],
         columns='candidate_name',
@@ -196,6 +248,12 @@ def main():
 
     second_place = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']
 
+    # Alter boe goruped data frame to make it presentable for top line results
+
+    boe_grouped_table = boe_grouped[["candidate_name","ballots_candidate_precinct","candidate_percent_precinct"]]
+
+    boe_grouped_table = boe_grouped_table.sort_values("ballots_candidate_precinct", ascending=False)
+
     # for each column name remove "ballots_candidate_precinct_"
     filtered_boe.columns = [col.replace("ballots_candidate_precinct_", "") for col in filtered_boe.columns]
     # drop columns wiht "ballots_precinct_total"
@@ -209,28 +267,23 @@ def main():
         col: '{:.2%}' if "Percent" in col else '{:,.0f}' for col in filtered_boe.columns if col not in ['ward', 'precinct']
     })
 
-
-    st.header(f"Voter Turnout and Millionaires Tax Referendum Results for {selected_race}")
-
-    st.subheader("Summary of Results")
+    st.subheader(f"Summary of Results for {selected_race}")
 
     # Write district turnout percent and ballot win percent yes
     # 
-    st.markdown(f"""District Turnout Percent: {filtered_general['ballots_cast'].sum() / filtered_general['registered_voters'].sum():.2%}
-
-{winner} Won the BOE Election with {boe_grouped[boe_grouped['candidate_name'] == winner]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == winner]['candidate_percent_precinct'].values[0]:.2%} of the vote.
-    
-{second_place} came in second with {boe_grouped[boe_grouped['candidate_name'] == second_place]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == second_place]['candidate_percent_precinct'].values[0]:.2%} of the vote.
-
-Referendum Yes Percent: {filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum():.2%}
-
-Referendum Result: {"Won" if filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum() > 0.5 else "Lost"}
-
-Referendum Turnout Percent: {filtered_general['ballots_ref_precinct_total'].sum() / filtered_general['registered_voters'].sum():.2%}
-
-The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Precincts out of {filtered_general.shape[0]} Precincts, or {(filtered_general['ref_won_precinct'] == 'Won').sum() / filtered_general.shape[0]:.2%} of Precincts.
-    
+    st.markdown(f"""
+                
+- District Turnout Percent: {filtered_general['ballots_cast'].sum() / filtered_general['registered_voters'].sum():.2%}
+- Turnout for Board of Education (BOE) Election: {boe_grouped['ballots_candidate_precinct'].sum() / filtered_general['registered_voters'].sum():.2%}
+- {boe_grouped['ballots_candidate_precinct'].sum() - filtered_general['ballots_cast'].sum():,.0f} fewer people turned out for the BOE election relative to total ballots cast.
+- {winner} Won the BOE Election with {boe_grouped[boe_grouped['candidate_name'] == winner]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == winner]['candidate_percent_precinct'].values[0]:.2%} of the vote.
+- {second_place} came in second with {boe_grouped[boe_grouped['candidate_name'] == second_place]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == second_place]['candidate_percent_precinct'].values[0]:.2%} of the vote.
+- Referendum Yes Percent: {filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum():.2%}
+- Referendum Result: {"Won" if filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum() > 0.5 else "Lost"}
+- Referendum Turnout Percent: {filtered_general['ballots_ref_precinct_total'].sum() / filtered_general['registered_voters'].sum():.2%}
+- The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Precincts out of {filtered_general.shape[0]} Precincts, or {(filtered_general['ref_won_precinct'] == 'Won').sum() / filtered_general.shape[0]:.2%} of Precincts.  
     """)
+
 
     filtered_general = filtered_general[["ward","precinct","registered_voters","ballots_cast","turnout_percent_precinct","ref_yes","ballots_ref_precinct_total","ref_yes_percent_precinct","ref_won_precinct"]] 
 
@@ -244,47 +297,85 @@ The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Preci
         'ref_yes_percent_precinct': '{:.2%}'
     })
 
-    # bold these titles
-    st.write(f"**Detailed Precinct-Level Turnout and Millionaires Tax Referendum Results for {selected_race}**")
+    boe_grouped_table = boe_grouped_table.style.format({
+        'candidate_name': '{}',
+        'ballots_candidate_precinct': '{:,.0f}',
+        'candidate_percent_precinct': '{:.2%}'
+    })
 
-    st.dataframe(filtered_general, use_container_width=True)
+    tab_tables, tab_map = st.tabs(["Tables","Maps"])
 
-    st.write(f"**Detailed Precinct-Level BOE Results for {selected_race}**")
-    
-    st.dataframe(filtered_boe, use_container_width=True)
+    with tab_tables:
+
+        st.write(f"**Total Results for {selected_race}**")
+
+        st.dataframe(boe_grouped_table, use_container_width=True,hide_index=True)
+
+        st.write(f"**Detailed Precinct-Level BOE Results for {selected_race}**")
+        
+        st.dataframe(filtered_boe, use_container_width=True,hide_index=True)
+
+        st.write(f"**Detailed Precinct-Level Turnout and Millionaires Tax Referendum Results for {selected_race}**")
+
+        st.dataframe(filtered_general, use_container_width=True,hide_index=True)
+
+    with tab_map:
+
+        m = folium.Map(location=[41.8781, -87.6298], zoom_start=10, tiles=None)
+        folium.TileLayer("Cartodb Positron", name="Satellite", control=False).add_to(m)
 
 
+        boe_map_layer = folium.GeoJson(
+            boe_map,
+            name="boe_map",
+            # Show all candidates in the tooltip with HTML formatting
+            tooltip=folium.GeoJsonTooltip(
+                fields=['ward_precinct', 'winner', 'candidates', 'total_precinct_votes'], 
+                aliases=['Ward-Precinct:', 'Winner:', 'All Candidates & Results:', 'Total Votes:'],
+                sticky=True,
+                labels=True,
+                style="background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;"
+            ),
+            style_function=lambda feature: {
+                'fillColor': feature['properties']['winner_color'], 
+                'color': 'grey', 
+                'fillOpacity': 0.5, 
+                'weight': 1
+            },
+        ).add_to(m)
+    # folium.GeoJson(
+    #     ward_precinct,
+    #     name="ward_precinct",
+    #     tooltip=folium.GeoJsonTooltip(fields=['ward', 'precinct']),
+    #     style_function=lambda x: {'fillColor': 'green', 'color': 'green', 'fillOpacity': 0},
+    # ).add_to(m)
+        ersb_layer = folium.GeoJson(
+        boe_outlines,
+        name="ersb_20",
+        interactive=False,
+        style_function=lambda x: {'fillColor': 'green', 'color': 'black', 'fillOpacity': 0, 'weight': 1},
+        ).add_to(m)
 
-#    ward_precinct=load_data()
-#     # if df is None:
-#     #     return
+        folium.LayerControl().add_to(m)
 
-#     m = folium.Map(location=[41.8781, -87.6298], zoom_start=10, tiles=None)
-#     folium.TileLayer("OpenStreetMap", name="Satellite", control=False).add_to(m)
+        # Add a legend showing candidate colors
+        legend_html = """
+        <div style="position: fixed; 
+                    top: 10px; right: 10px; width: 200px; height: auto; 
+                    background-color: white; border:2px solid grey; z-index:9999; 
+                    font-size:12px; padding: 10px">
+        <h4>Precinct Winners</h4>
+        """
+        
+        for candidate, color in candidate_colors.items():
+            legend_html += f'<p><span style="color:{color};">■</span> {candidate}</p>'
+        
+        legend_html += f'<p><span style="color:{tie_color};">■</span> TIE</p>'
+        legend_html += "</div>"
+        
+        m.get_root().html.add_child(folium.Element(legend_html))
 
-# #    make fill completely transparent. make city boundaries pink and ersb green.
-#     folium.GeoJson(
-#         intersection,
-#         name="intersection",
-#         tooltip=folium.GeoJsonTooltip(fields=['ward', 'precinct']),
-#         style_function=lambda x: {'fillColor': 'green', 'color': 'pink', 'fillOpacity': 0.5},
-#     ).add_to(m)
-#     # folium.GeoJson(
-#     #     ward_precinct,
-#     #     name="ward_precinct",
-#     #     tooltip=folium.GeoJsonTooltip(fields=['ward', 'precinct']),
-#     #     style_function=lambda x: {'fillColor': 'green', 'color': 'green', 'fillOpacity': 0},
-#     # ).add_to(m)
-#     folium.GeoJson(
-#     ersb_20,
-#     name="ersb_20",
-#     interactive=False,
-#     style_function=lambda x: {'fillColor': 'green', 'color': 'black', 'fillOpacity': 0},
-#     ).add_to(m)
-
-#     folium.LayerControl().add_to(m)
-
-#     st_folium(m,returned_objects=[],use_container_width=True)
+        st_folium(m,returned_objects=[],use_container_width=True)
 
     # Embed the saved HTML map directly to avoid iframe pointing at the app root.
     # with open("ward_precinct_ersb20_intersection.html", "r", encoding="utf-8") as html_file:
