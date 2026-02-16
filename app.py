@@ -7,9 +7,9 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 
-st.title("Board of Education Election Results by Precinct")
+st.title("Board of Education Nov 2024 Election Results by Precinct")
 st.markdown("""
-This application presents the results of the Board of Education election by precinct.
+This tool presents the results of the Board of Education election, the millionaires tax referendum, and voter turnout in aggregate and by precinct.
 """)
 
 # set page config to wide
@@ -19,8 +19,8 @@ st.set_page_config(layout="wide", page_title="Board of Education Election Result
 def load_data():
     df = pd.read_csv("data.csv")
 
-    # ersb_10 = gpd.read_file(rf"ERSB_10_District_Map_FA1_SB_15.shp")
-    # ersb_20 = gpd.read_file(rf"ERSB_20_Sub_District_Map_FA1_SB_15.shp")
+    ersb_10 = gpd.read_file(rf"ERSB_10_District_Map_FA1_SB_15.shp")
+    ersb_20 = gpd.read_file(rf"ERSB_20_Sub_District_Map_FA1_SB_15.shp")
     ward_precinct = gpd.read_file(rf"ward_precinct.geojson")
     # intersection = gpd.read_file(rf"ward_precinct_ersb20_intersection.geojson")
 
@@ -74,10 +74,13 @@ def load_data():
         }).reset_index()
     
     # merge boe_join with ward_precinct to get geometry for merging with general
-    boe_outlines = ward_precinct.merge(boe_join,on=["ward","precinct"],how="left")
+#    boe_outlines = ward_precinct.merge(boe_join,on=["ward","precinct"],how="left")
 
     # dissolve the geometry by district to get a geometry for each district
-    boe_outlines = boe_outlines.dissolve(by='race_name')
+#    boe_outlines = boe_outlines.dissolve('race_name')
+    # Remove all columns with ":"
+
+#    boe_outlines = boe_outlines[[col for col in boe_outlines.columns if ":" not in col]]
 
     # create a ward_precinct field in boe_join for merging with general
     boe_join['ward'] = boe_join['ward'].apply(lambda x: str(x).zfill(2))
@@ -161,14 +164,15 @@ def load_data():
     "ref_yes_percent_precinct",
     "ref_won_precinct"]
 
-    return general,boe,boe_outlines,ward_precinct
+    return general,boe,ersb_20,ersb_10,ward_precinct
 
 #    return df,boe,general,pt_relief,ersb_20
 #    return ward_precinct
 def main():    
     # Load data
 #    df,boe,general,pt_relief,ersb_20=load_data()
-    general,boe,boe_outlines,ward_precinct=load_data()
+    general,boe,ersb_20,ersb_10,ward_precinct=load_data()
+
 
 
     # Create a select box to select by race_name.unique() and sort alphabetically
@@ -327,7 +331,7 @@ def main():
 
         boe_map_layer = folium.GeoJson(
             boe_map,
-            name="boe_map",
+            name="Board of Education Election Results",
             # Show all candidates in the tooltip with HTML formatting
             tooltip=folium.GeoJsonTooltip(
                 fields=['ward_precinct', 'winner', 'candidates', 'total_precinct_votes'], 
@@ -339,8 +343,8 @@ def main():
             style_function=lambda feature: {
                 'fillColor': feature['properties']['winner_color'], 
                 'color': 'grey', 
-                'fillOpacity': 0.5, 
-                'weight': 1
+                'fillOpacity': 0.3, 
+                'weight': .6
             },
         ).add_to(m)
     # folium.GeoJson(
@@ -349,19 +353,24 @@ def main():
     #     tooltip=folium.GeoJsonTooltip(fields=['ward', 'precinct']),
     #     style_function=lambda x: {'fillColor': 'green', 'color': 'green', 'fillOpacity': 0},
     # ).add_to(m)
-        ersb_layer = folium.GeoJson(
-        boe_outlines,
-        name="ersb_20",
+        ersb_20_layer = folium.GeoJson(
+        ersb_20,
+        name="ERSB 20 Sub-District Map",
         interactive=False,
-        style_function=lambda x: {'fillColor': 'green', 'color': 'black', 'fillOpacity': 0, 'weight': 1},
+        style_function=lambda x: {'fillColor': 'green', 'color': 'black', 'fillOpacity': 0, 'weight': 1.3,"dashArray": "5, 5"},
+        ).add_to(m)
+        ersb_10_layer = folium.GeoJson(
+        ersb_10,
+        name="ERSB 10 District Map",
+        interactive=False,
+        style_function=lambda x: {'fillColor': 'green', 'color': 'black', 'fillOpacity': 0, 'weight': 1.3},
         ).add_to(m)
 
         folium.LayerControl().add_to(m)
-
         # Add a legend showing candidate colors
         legend_html = """
         <div style="position: fixed; 
-                    top: 10px; right: 10px; width: 200px; height: auto; 
+                    top: 10px; left: 10px; width: 200px; height: auto; 
                     background-color: white; border:2px solid grey; z-index:9999; 
                     font-size:12px; padding: 10px">
         <h4>Precinct Winners</h4>
