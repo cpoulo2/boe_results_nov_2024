@@ -307,13 +307,11 @@ def main():
         'candidate_percent_precinct': '{:.2%}'
     })
 
-<<<<<<< HEAD
     st.dataframe(filtered_general, use_container_width=True, hide_index=True)
 
     st.write(f"**Detailed Precinct-Level BOE Results for {selected_race}**")
     
     st.dataframe(filtered_boe, use_container_width=True, hide_index=True)
-=======
     tab_tables, tab_map = st.tabs(["Tables","Maps"])
 
     with tab_tables:
@@ -334,7 +332,6 @@ def main():
 
         m = folium.Map(location=[41.8781, -87.6298], zoom_start=10, tiles=None)
         folium.TileLayer("Cartodb Positron", name="Satellite", control=False).add_to(m)
->>>>>>> 52c0c4c9362bfa6f748ebdc74ec0b3710054546d
 
 
         boe_map_layer = folium.GeoJson(
