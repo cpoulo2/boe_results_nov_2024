@@ -252,7 +252,7 @@ def main():
 
     st.write(boe_grouped['candidate_name'].sort_values(ascending=False))
 
-    if boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']:
+    if boe_grouped['candidate_name'].nunique() > 1:
 
         second_place = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']
     else:
@@ -281,18 +281,32 @@ def main():
 
     # Write district turnout percent and ballot win percent yes
     # 
-    st.markdown(f"""
-                
-- District Turnout Percent: {filtered_general['ballots_cast'].sum() / filtered_general['registered_voters'].sum():.2%}
-- Turnout for Board of Education (BOE) Election: {boe_grouped['ballots_candidate_precinct'].sum() / filtered_general['registered_voters'].sum():.2%}
-- {boe_grouped['ballots_candidate_precinct'].sum() - filtered_general['ballots_cast'].sum():,.0f} fewer people turned out for the BOE election relative to total ballots cast.
-- {winner} Won the BOE Election with {boe_grouped[boe_grouped['candidate_name'] == winner]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == winner]['candidate_percent_precinct'].values[0]:.2%} of the vote.
-- {second_place} came in second with {boe_grouped[boe_grouped['candidate_name'] == second_place]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == second_place]['candidate_percent_precinct'].values[0]:.2%} of the vote.
-- Referendum Yes Percent: {filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum():.2%}
-- Referendum Result: {"Won" if filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum() > 0.5 else "Lost"}
-- Referendum Turnout Percent: {filtered_general['ballots_ref_precinct_total'].sum() / filtered_general['registered_voters'].sum():.2%}
-- The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Precincts out of {filtered_general.shape[0]} Precincts, or {(filtered_general['ref_won_precinct'] == 'Won').sum() / filtered_general.shape[0]:.2%} of Precincts.  
-    """)
+    if boe_grouped['candidate_name'].nunique() > 1:
+        st.markdown(f"""
+                    
+    - District Turnout Percent: {filtered_general['ballots_cast'].sum() / filtered_general['registered_voters'].sum():.2%}
+    - Turnout for Board of Education (BOE) Election: {boe_grouped['ballots_candidate_precinct'].sum() / filtered_general['registered_voters'].sum():.2%}
+    - {boe_grouped['ballots_candidate_precinct'].sum() - filtered_general['ballots_cast'].sum():,.0f} fewer people turned out for the BOE election relative to total ballots cast.
+    - {winner} Won the BOE Election with {boe_grouped[boe_grouped['candidate_name'] == winner]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == winner]['candidate_percent_precinct'].values[0]:.2%} of the vote.
+    - {second_place} came in second with {boe_grouped[boe_grouped['candidate_name'] == second_place]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == second_place]['candidate_percent_precinct'].values[0]:.2%} of the vote.
+    - Referendum Yes Percent: {filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum():.2%}
+    - Referendum Result: {"Won" if filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum() > 0.5 else "Lost"}
+    - Referendum Turnout Percent: {filtered_general['ballots_ref_precinct_total'].sum() / filtered_general['registered_voters'].sum():.2%}
+    - The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Precincts out of {filtered_general.shape[0]} Precincts, or {(filtered_general['ref_won_precinct'] == 'Won').sum() / filtered_general.shape[0]:.2%} of Precincts.  
+        """)
+    else:
+        st.markdown(f"""
+                    
+    - District Turnout Percent: {filtered_general['ballots_cast'].sum() / filtered_general['registered_voters'].sum():.2%}
+    - Turnout for Board of Education (BOE) Election: {boe_grouped['ballots_candidate_precinct'].sum() / filtered_general['registered_voters'].sum():.2%}
+    - {boe_grouped['ballots_candidate_precinct'].sum() - filtered_general['ballots_cast'].sum():,.0f} fewer people turned out for the BOE election relative to total ballots cast.
+    - {winner} Won the BOE Election with {boe_grouped[boe_grouped['candidate_name'] == winner]['ballots_candidate_precinct'].values[0]:,.0f} votes, or {boe_grouped[boe_grouped['candidate_name'] == winner]['candidate_percent_precinct'].values[0]:.2%} of the vote.
+    - Only 1 candidate ran in this election.
+    - Referendum Yes Percent: {filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum():.2%}
+    - Referendum Result: {"Won" if filtered_general['ref_yes'].sum() / filtered_general['ballots_ref_precinct_total'].sum() > 0.5 else "Lost"}
+    - Referendum Turnout Percent: {filtered_general['ballots_ref_precinct_total'].sum() / filtered_general['registered_voters'].sum():.2%}
+    - The Referendum Won {(filtered_general['ref_won_precinct'] == 'Won').sum()} Precincts out of {filtered_general.shape[0]} Precincts, or {(filtered_general['ref_won_precinct'] == 'Won').sum() / filtered_general.shape[0]:.2%} of Precincts.  
+        """)
 
 
     filtered_general = filtered_general[["ward","precinct","registered_voters","ballots_cast","turnout_percent_precinct","ref_yes","ballots_ref_precinct_total","ref_yes_percent_precinct","ref_won_precinct"]] 
