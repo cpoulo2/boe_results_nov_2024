@@ -249,9 +249,7 @@ def main():
     filtered_boe = filtered_boe.reset_index()
 
     winner = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[0]['candidate_name']
-
-    st.write(boe_grouped['candidate_name'].sort_values(ascending=False))
-
+    
     if boe_grouped['candidate_name'].nunique() > 1:
 
         second_place = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']
