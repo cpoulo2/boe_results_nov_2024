@@ -307,11 +307,7 @@ def main():
         'candidate_percent_precinct': '{:.2%}'
     })
 
-    st.dataframe(filtered_general, use_container_width=True, hide_index=True)
 
-    st.write(f"**Detailed Precinct-Level BOE Results for {selected_race}**")
-    
-    st.dataframe(filtered_boe, use_container_width=True, hide_index=True)
     tab_tables, tab_map = st.tabs(["Tables","Maps"])
 
     with tab_tables:
@@ -398,12 +394,6 @@ def main():
 
     # apply subtext to the markdown language
 
-    st.markdown(
-        """<sup>
-    I hope you're happy...I lost an hour of free time to this project...
-
-JK! Hope this helps!!</sup>""",
-        unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
