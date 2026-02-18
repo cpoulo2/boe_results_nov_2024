@@ -250,7 +250,11 @@ def main():
 
     winner = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[0]['candidate_name']
 
-    second_place = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']
+    if boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']:
+
+        second_place = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']
+    else:
+        second_place = "N/A"
 
     # Alter boe goruped data frame to make it presentable for top line results
 
