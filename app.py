@@ -250,7 +250,7 @@ def main():
 
     winner = boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[0]['candidate_name']
 
-    st.write(boe_grouped['candidate_percent_precinct'].sort_values(ascending=False))
+    st.write(boe_grouped['candidate_name'].sort_values(ascending=False))
 
     if boe_grouped.sort_values('candidate_percent_precinct', ascending=False).iloc[1]['candidate_name']:
 
